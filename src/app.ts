@@ -20,6 +20,8 @@ Untuk absen, kirimkan kode OTP 6 digit Anda.
 📝 Kirim OTP - Absen
 📊 /report - Lihat laporan absensi hari ini
 📈 /history - Lihat riwayat absensi Anda
+🏷️ /alias - Absen dengan nama lain
+🔄 /status - Cek status absensi hari ini
 ❓ /help - Tampilkan pesan bantuan ini
 
 *Catatan:* Absensi sebelum jam 9:00 pagi akan tercatat sebagai "Tepat Waktu", setelah jam 9:00 pagi akan tercatat sebagai "Terlambat".
@@ -41,6 +43,9 @@ bot.help((ctx) => {
 📊 /report - Lihat laporan absensi hari ini
 📈 /history - Lihat riwayat absensi Anda (30 hari terakhir)
 🔄 /status - Cek apakah Anda sudah absen hari ini
+🏷️ /alias - Absen dengan nama lain
+   Format: \`/alias [OTP] [Nama Depan] [Nama Belakang]\`
+   Contoh: \`/alias 123456 John Doe\`
 
 *Peraturan:*
 • Setiap orang hanya bisa absen sekali per hari
@@ -122,6 +127,61 @@ bot.command("status", async (ctx) => {
   } catch (error) {
     console.error("Error checking status:", error);
     ctx.reply("❌ Terjadi kesalahan saat memeriksa status. Silakan coba lagi.");
+  }
+});
+
+// Alias command
+bot.command("alias", async (ctx) => {
+  const args = ctx.message.text.split(" ").slice(1); // Remove /alias from the command
+
+  if (args.length < 2) {
+    ctx.reply(
+      `❓ *Cara Menggunakan Alias*\n\nFormat: \`/alias [OTP] [Nama Depan] [Nama Belakang (opsional)]\`\n\n*Contoh:*\n\`/alias 123456 John Doe\`\n\`/alias 123456 Jane\`\n\n*Catatan:* Fitur ini memungkinkan Anda absen dengan nama yang berbeda.`,
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+
+  const otp = args[0];
+  const firstName = args[1];
+  const lastName = args.length > 2 ? args.slice(2).join(" ") : undefined;
+
+  // Validate OTP format (6 digits)
+  if (!/^\d{6}$/.test(otp)) {
+    ctx.reply("❌ OTP harus berupa 6 digit angka. Contoh: 123456");
+    return;
+  }
+
+  try {
+    const userId = ctx.from.id;
+    const username = ctx.from.username || "unknown";
+
+    // Verifikasi OTP
+    if (!attendanceService.verifyOTP(otp)) {
+      ctx.reply(
+        "❌ Kode OTP tidak valid. Silakan cek aplikasi autentikator Anda dan coba lagi."
+      );
+      return;
+    }
+
+    // Tandai absensi dengan alias
+    const result = await attendanceService.markAttendanceWithAlias(
+      userId,
+      username,
+      firstName,
+      lastName
+    );
+
+    if (result.success) {
+      ctx.reply(`🎉 ${result.message}`, { parse_mode: "Markdown" });
+    } else {
+      ctx.reply(`❌ ${result.message}`);
+    }
+  } catch (error) {
+    console.error("Error processing alias attendance:", error);
+    ctx.reply(
+      "❌ Terjadi kesalahan saat memproses absensi. Silakan coba lagi."
+    );
   }
 });
 

@@ -1,5 +1,5 @@
 import { authenticator } from "otplib";
-import * as QRCode from "qrcode";
+import QRCode from "qrcode";
 
 // Generate a new TOTP secret
 const secret = authenticator.generateSecret();

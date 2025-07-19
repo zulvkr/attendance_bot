@@ -77,6 +77,65 @@ export class AttendanceService {
     }
   }
 
+  async markAttendanceWithAlias(
+    userId: number,
+    username: string,
+    aliasFirstName: string,
+    aliasLastName?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    record?: AttendanceRecord;
+  }> {
+    const now = new Date();
+    const dateKey = formatDate(now, "yyyy-MM-dd");
+
+    // Check if user already marked attendance today
+    try {
+      const hasAttendance = await this.db.attendance.checkUserAttendanceToday(
+        userId,
+        dateKey
+      );
+      if (hasAttendance) {
+        return {
+          success: false,
+          message: "Anda sudah absen hari ini!",
+        };
+      }
+
+      const record = {
+        userId,
+        username,
+        firstName: aliasFirstName,
+        lastName: aliasLastName,
+        timestamp: now,
+        date: dateKey,
+      };
+
+      // Store the record in database
+      const savedRecord = await this.db.attendance.insertAttendance(record);
+
+      const aliasName = aliasLastName
+        ? `${aliasFirstName} ${aliasLastName}`
+        : aliasFirstName;
+
+      return {
+        success: true,
+        message: `Absensi berhasil dicatat dengan nama: *${aliasName}*\nWaktu: ${formatTime(
+          now,
+          "HH:mm"
+        )}`,
+        record: savedRecord,
+      };
+    } catch (error) {
+      console.error("Error marking attendance with alias:", error);
+      return {
+        success: false,
+        message: "Terjadi kesalahan saat mencatat absensi. Silakan coba lagi.",
+      };
+    }
+  }
+
   async getTodayAttendance(): Promise<AttendanceRecord[]> {
     const today = formatDate(new Date(), "yyyy-MM-dd");
     return await this.db.attendance.getTodayAttendance(today);

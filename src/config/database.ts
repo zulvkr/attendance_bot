@@ -1,5 +1,7 @@
 import knex, { Knex } from "knex";
 import { AttendanceRepository } from "../repository/attendanceRepository";
+import path from "node:path";
+import fs from "node:fs";
 
 export interface AttendanceRecord {
   id?: number;
@@ -27,7 +29,12 @@ export class DatabaseService {
   public attendance: AttendanceRepository;
   private db: Knex;
 
-  constructor(dbPath: string = "attendance.db") {
+  constructor(dbPath: string = "data/attendance.db") {
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
     this.db = knex({
       client: "sqlite3",
       connection: {
