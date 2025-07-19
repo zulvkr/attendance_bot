@@ -2,8 +2,18 @@ import { authenticator } from "otplib";
 import { ENV } from "./config/environment";
 import { formatDate, formatTime } from "./utils/dateUtils";
 import { DatabaseService, AttendanceRecord } from "./config/database";
+import * as createCsvWriter from "csv-writer";
+import * as path from "path";
+import * as fs from "fs";
 
 export class AttendanceService {
+  async setUserAlias(
+    userId: number,
+    firstName: string,
+    lastName?: string
+  ): Promise<{ success: boolean; message: string }> {
+    return await this.db.attendance.setUserAlias(userId, firstName, lastName);
+  }
   private db: DatabaseService;
 
   constructor() {
@@ -115,9 +125,12 @@ export class AttendanceService {
       // Store the record in database
       const savedRecord = await this.db.attendance.insertAttendance(record);
 
-      const aliasName = aliasLastName
-        ? `${aliasFirstName} ${aliasLastName}`
-        : aliasFirstName;
+      let aliasName: string;
+      if (aliasLastName) {
+        aliasName = `${aliasFirstName} ${aliasLastName}`;
+      } else {
+        aliasName = aliasFirstName;
+      }
 
       return {
         success: true,
@@ -148,6 +161,16 @@ export class AttendanceService {
     return await this.db.attendance.getUserAttendanceHistory(userId, days);
   }
 
+  async getAttendanceByDateRange(
+    startDate: string,
+    endDate: string
+  ): Promise<AttendanceRecord[]> {
+    return await this.db.attendance.getAttendanceByDateRange(
+      startDate,
+      endDate
+    );
+  }
+
   async generateAttendanceReport(): Promise<string> {
     const today = await this.getTodayAttendance();
     if (today.length === 0) {
@@ -159,14 +182,88 @@ export class AttendanceService {
 
     report += `*Daftar Absensi:*\n`;
     today.forEach((record, index) => {
-      const name = record.lastName
-        ? `${record.firstName} ${record.lastName}`
-        : record.firstName;
+      let name: string;
+      if (record.alias) {
+        name = record.alias;
+      } else if (record.lastName) {
+        name = `${record.firstName} ${record.lastName}`;
+      } else {
+        name = record.firstName;
+      }
       const time = formatTime(record.timestamp, "HH:mm");
       report += `${index + 1}. ${name} - ${time}\n`;
     });
 
     return report;
+  }
+
+  async generateCSVReport(
+    startDate: string,
+    endDate: string
+  ): Promise<{ filePath: string; recordCount: number }> {
+    const records = await this.getAttendanceByDateRange(startDate, endDate);
+
+    if (records.length === 0) {
+      throw new Error("Tidak ada data absensi dalam rentang tanggal tersebut");
+    }
+
+    // Create CSV file path
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = `attendance_${startDate}_to_${endDate}_${timestamp}.csv`;
+    const filePath = path.join(process.cwd(), "temp", fileName);
+
+    // Ensure temp directory exists
+    const tempDir = path.dirname(filePath);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    // Create CSV writer
+    const csvWriter = createCsvWriter.createObjectCsvWriter({
+      path: filePath,
+      header: [
+        { id: "date", title: "Tanggal" },
+        { id: "time", title: "Waktu" },
+        { id: "name", title: "Nama" },
+        { id: "username", title: "Username" },
+        { id: "userId", title: "User ID" },
+        { id: "status", title: "Status" },
+      ],
+    });
+
+    // Prepare data for CSV
+    const csvData = records.map((record) => {
+      let name: string;
+      if (record.alias) {
+        name = record.alias;
+      } else if (record.lastName) {
+        name = `${record.firstName} ${record.lastName}`;
+      } else {
+        name = record.firstName;
+      }
+      let status: string | undefined;
+      if (record.status === "present") {
+        status = "Tepat Waktu";
+      } else if (record.status === "late") {
+        status = "Terlambat";
+      }
+      return {
+        date: record.date,
+        time: formatTime(record.timestamp, "HH:mm:ss"),
+        name,
+        username: record.username,
+        userId: record.userId.toString(),
+        status,
+      };
+    });
+
+    // Write CSV file
+    await csvWriter.writeRecords(csvData);
+
+    return {
+      filePath,
+      recordCount: records.length,
+    };
   }
 
   async close(): Promise<void> {

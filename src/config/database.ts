@@ -9,6 +9,7 @@ export interface AttendanceRecord {
   username: string;
   firstName: string;
   lastName?: string;
+  alias?: string;
   timestamp: Date;
   status?: "present" | "late";
   date: string; // Date in YYYY-MM-DD format for easy querying
@@ -48,9 +49,9 @@ export class DatabaseService {
 
   private async initDatabase(): Promise<void> {
     try {
-      // Create table if it doesn't exist
-      const hasTable = await this.db.schema.hasTable("attendance");
-      if (!hasTable) {
+      // Create attendance table if it doesn't exist
+      const hasAttendanceTable = await this.db.schema.hasTable("attendance");
+      if (!hasAttendanceTable) {
         await this.db.schema.createTable("attendance", (table) => {
           table.increments("id").primary();
           table.integer("userId").notNullable();
@@ -61,12 +62,21 @@ export class DatabaseService {
           table.enu("status", ["present", "late"]).nullable();
           table.string("date").notNullable();
           table.unique(["userId", "date"]);
-
-          // Create indexes
           table.index(["userId", "date"], "idx_user_date");
           table.index("date", "idx_date");
         });
-        console.log("Database initialized successfully");
+        console.log("Attendance table initialized successfully");
+      }
+
+      // Create alias table if it doesn't exist
+      const hasAliasTable = await this.db.schema.hasTable("alias");
+      if (!hasAliasTable) {
+        await this.db.schema.createTable("alias", (table) => {
+          table.integer("userId").primary();
+          table.string("firstName").notNullable();
+          table.string("lastName").nullable();
+        });
+        console.log("Alias table initialized successfully");
       }
     } catch (error) {
       console.error("Error initializing database:", error);

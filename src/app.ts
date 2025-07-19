@@ -1,13 +1,25 @@
 import { ENV } from "./config/environment";
 import { AttendanceService } from "./attendance";
 
-import { Telegraf, Context } from "telegraf";
+import { Telegraf, Context, session } from "telegraf";
 import { message } from "telegraf/filters";
+import * as fs from "fs";
+
+interface SessionData {
+  awaitingDateRange?: boolean;
+}
+
+interface MyContext extends Context {
+  session?: SessionData;
+}
 
 // Create attendance service instance
 const attendanceService = new AttendanceService();
 
-const bot = new Telegraf(ENV.BOT_TOKEN);
+const bot = new Telegraf<MyContext>(ENV.BOT_TOKEN);
+
+// Use session middleware
+bot.use(session());
 
 // Start command
 bot.start((ctx) => {
@@ -22,6 +34,7 @@ Untuk absen, kirimkan kode OTP 6 digit Anda.
 📈 /history - Lihat riwayat absensi Anda
 🏷️ /alias - Absen dengan nama lain
 🔄 /status - Cek status absensi hari ini
+📋 /fullreport - Download laporan lengkap (CSV)
 ❓ /help - Tampilkan pesan bantuan ini
 
 *Catatan:* Absensi sebelum jam 9:00 pagi akan tercatat sebagai "Tepat Waktu", setelah jam 9:00 pagi akan tercatat sebagai "Terlambat".
@@ -46,6 +59,8 @@ bot.help((ctx) => {
 🏷️ /alias - Absen dengan nama lain
    Format: \`/alias [OTP] [Nama Depan] [Nama Belakang]\`
    Contoh: \`/alias 123456 John Doe\`
+📋 /fullreport - Download laporan lengkap dalam format CSV
+   Format: Masukkan rentang tanggal (YYYY-MM-DD YYYY-MM-DD)
 
 *Peraturan:*
 • Setiap orang hanya bisa absen sekali per hari
@@ -136,52 +151,54 @@ bot.command("alias", async (ctx) => {
 
   if (args.length < 2) {
     ctx.reply(
-      `❓ *Cara Menggunakan Alias*\n\nFormat: \`/alias [OTP] [Nama Depan] [Nama Belakang (opsional)]\`\n\n*Contoh:*\n\`/alias 123456 John Doe\`\n\`/alias 123456 Jane\`\n\n*Catatan:* Fitur ini memungkinkan Anda absen dengan nama yang berbeda.`,
+      `❓ *Cara Menggunakan Alias*\n\nFormat: \`/alias [Nama Depan] [Nama Belakang (opsional)]\`\n\n*Contoh:*\n\`/alias John Doe\`\n\`/alias Jane\`\n\n*Catatan:* Fitur ini memungkinkan Anda menggunakan nama panggilan/alias untuk absensi.`,
       { parse_mode: "Markdown" }
     );
     return;
   }
 
-  const otp = args[0];
-  const firstName = args[1];
-  const lastName = args.length > 2 ? args.slice(2).join(" ") : undefined;
-
-  // Validate OTP format (6 digits)
-  if (!/^\d{6}$/.test(otp)) {
-    ctx.reply("❌ OTP harus berupa 6 digit angka. Contoh: 123456");
-    return;
-  }
+  const firstName = args[0];
+  const lastName = args.length > 1 ? args.slice(1).join(" ") : undefined;
 
   try {
     const userId = ctx.from.id;
-    const username = ctx.from.username || "unknown";
-
-    // Verifikasi OTP
-    if (!attendanceService.verifyOTP(otp)) {
-      ctx.reply(
-        "❌ Kode OTP tidak valid. Silakan cek aplikasi autentikator Anda dan coba lagi."
-      );
-      return;
-    }
-
-    // Tandai absensi dengan alias
-    const result = await attendanceService.markAttendanceWithAlias(
+    // Simpan alias ke database
+    const result = await attendanceService.setUserAlias(
       userId,
-      username,
       firstName,
       lastName
     );
 
     if (result.success) {
-      ctx.reply(`🎉 ${result.message}`, { parse_mode: "Markdown" });
+      ctx.reply(
+        `✅ Alias berhasil disimpan: *${firstName}${
+          lastName ? " " + lastName : ""
+        }*`,
+        { parse_mode: "Markdown" }
+      );
     } else {
-      ctx.reply(`❌ ${result.message}`);
+      ctx.reply(`❌ Gagal menyimpan alias: ${result.message}`);
     }
   } catch (error) {
-    console.error("Error processing alias attendance:", error);
+    console.error("Error saving alias:", error);
+    ctx.reply("❌ Terjadi kesalahan saat menyimpan alias. Silakan coba lagi.");
+  }
+});
+
+// Full report command
+bot.command("fullreport", async (ctx) => {
+  try {
     ctx.reply(
-      "❌ Terjadi kesalahan saat memproses absensi. Silakan coba lagi."
+      `📊 *Laporan Lengkap Absensi*\n\nSilakan masukkan rentang tanggal dalam format:\n\`YYYY-MM-DD YYYY-MM-DD\`\n\n*Contoh:*\n\`2025-01-01 2025-01-31\`\n\n*Catatan:* Laporan akan dikirim dalam format CSV.`,
+      { parse_mode: "Markdown" }
     );
+
+    // Store user state for awaiting date range
+    ctx.session = ctx.session || {};
+    ctx.session.awaitingDateRange = true;
+  } catch (error) {
+    console.error("Error initiating full report:", error);
+    ctx.reply("❌ Terjadi kesalahan. Silakan coba lagi.");
   }
 });
 
@@ -224,21 +241,83 @@ bot.hears(/^\d{6}$/, async (ctx) => {
 });
 
 // Handle invalid messages
-bot.on(message("text"), (ctx) => {
+bot.on(message("text"), async (ctx) => {
+  const text = ctx.message.text;
+
+  // Check if user is awaiting date range input for full report
+  if (ctx.session?.awaitingDateRange) {
+    ctx.session.awaitingDateRange = false;
+
+    // Validate date range format
+    const dateRangeRegex = /^(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})$/;
+    const match = text.match(dateRangeRegex);
+
+    if (!match) {
+      ctx.reply(
+        "❌ Format tanggal tidak valid. Gunakan format: YYYY-MM-DD YYYY-MM-DD\n\nContoh: 2025-01-01 2025-01-31"
+      );
+      return;
+    }
+
+    const [, startDate, endDate] = match;
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      ctx.reply("❌ Tanggal tidak valid. Pastikan format tanggal benar.");
+      return;
+    }
+
+    if (start > end) {
+      ctx.reply("❌ Tanggal mulai tidak boleh lebih besar dari tanggal akhir.");
+      return;
+    }
+
+    // Generate and send CSV report
+    try {
+      ctx.reply("⏳ Membuat laporan CSV... Mohon tunggu.");
+
+      const { filePath, recordCount } =
+        await attendanceService.generateCSVReport(startDate, endDate);
+
+      // Send CSV file
+      await ctx.replyWithDocument(
+        {
+          source: filePath,
+          filename: `attendance_${startDate}_to_${endDate}.csv`,
+        },
+        {
+          caption: `📊 *Laporan Absensi*\n\n📅 Periode: ${startDate} s/d ${endDate}\n📈 Total Records: ${recordCount}`,
+          parse_mode: "Markdown",
+        }
+      );
+
+      // Clean up temp file
+      fs.unlinkSync(filePath);
+    } catch (error) {
+      console.error("Error generating CSV report:", error);
+      ctx.reply(
+        `❌ ${
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat membuat laporan."
+        }`
+      );
+    }
+    return;
+  }
+
+  // Handle OTP or show help
   ctx.reply(
     "🤔 Silakan kirim kode OTP 6 digit untuk absen, atau gunakan /help untuk melihat perintah yang tersedia."
   );
 });
 
 export function startBot() {
-  bot
-    .launch()
-    .then(() => {
-      console.log("Bot is running...");
-    })
-    .catch((error) => {
-      console.error("Failed to start bot:", error);
-    });
+  bot.launch();
+  console.log("Bot is running...");
 }
 
 // Graceful shutdown
