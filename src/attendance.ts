@@ -48,35 +48,24 @@ export class AttendanceService {
         };
       }
 
-      // Determine if late (after 9 AM)
-      const cutoffTime = new Date(now);
-      cutoffTime.setHours(9, 0, 0, 0);
-      const status: "present" | "late" =
-        now.getHours() >= 9 ? "late" : "present";
-
       const record = {
         userId,
         username,
         firstName,
         lastName,
         timestamp: now,
-        status,
         date: dateKey,
       };
 
       // Store the record in database
       const savedRecord = await this.db.attendance.insertAttendance(record);
 
-      const statusMessage =
-        status === "late" ? "⚠️ Late arrival" : "✅ On time";
-
       return {
         success: true,
-        message: `Absensi berhasil dicatat! ${
-          statusMessage === "⚠️ Late arrival"
-            ? "⚠️ Terlambat"
-            : "✅ Tepat Waktu"
-        }\nWaktu: ${formatTime(now, "HH:mm")}`,
+        message: `Absensi berhasil dicatat!\nWaktu: ${formatTime(
+          now,
+          "HH:mm"
+        )}`,
         record: savedRecord,
       };
     } catch (error) {
@@ -106,22 +95,16 @@ export class AttendanceService {
       return "Tidak ada data absensi hari ini.";
     }
 
-    const present = today.filter((r) => r.status === "present").length;
-    const late = today.filter((r) => r.status === "late").length;
-
-    let report = `📊 *Today's Attendance Report*\n\n`;
-    report += `✅ Tepat Waktu: ${present}\n`;
-    report += `⚠️ Terlambat: ${late}\n`;
+    let report = `📊 *Laporan Absensi Hari Ini*\n\n`;
     report += `📈 Total: ${today.length}\n\n`;
 
     report += `*Daftar Absensi:*\n`;
     today.forEach((record, index) => {
-      const status = record.status === "present" ? "✅" : "⚠️";
       const name = record.lastName
         ? `${record.firstName} ${record.lastName}`
         : record.firstName;
       const time = formatTime(record.timestamp, "HH:mm");
-      report += `${index + 1}. ${status} ${name} - ${time}\n`;
+      report += `${index + 1}. ${name} - ${time}\n`;
     });
 
     return report;

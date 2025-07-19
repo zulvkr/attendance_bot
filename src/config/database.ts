@@ -8,7 +8,7 @@ export interface AttendanceRecord {
   firstName: string;
   lastName?: string;
   timestamp: Date;
-  status: "present" | "late";
+  status?: "present" | "late";
   date: string; // Date in YYYY-MM-DD format for easy querying
 }
 
@@ -51,7 +51,7 @@ export class DatabaseService {
           table.string("firstName").notNullable();
           table.string("lastName").nullable();
           table.string("timestamp").notNullable();
-          table.enu("status", ["present", "late"]).notNullable();
+          table.enu("status", ["present", "late"]).nullable();
           table.string("date").notNullable();
           table.unique(["userId", "date"]);
 

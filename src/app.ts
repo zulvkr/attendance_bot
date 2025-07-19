@@ -77,21 +77,15 @@ bot.command("history", async (ctx) => {
 
     let historyMessage = `📈 *Riwayat Absensi Anda (30 hari terakhir)*\n\n`;
     history.forEach((record, index) => {
-      const status = record.status === "present" ? "✅" : "⚠️";
       const date = record.timestamp.toLocaleDateString();
       const time = record.timestamp.toLocaleTimeString("id-ID", {
         hour: "2-digit",
         minute: "2-digit",
       });
-      historyMessage += `${index + 1}. ${status} ${date} - ${time}\n`;
+      historyMessage += `${index + 1}. ${date} - ${time}\n`;
     });
 
-    const onTime = history.filter((r) => r.status === "present").length;
-    const late = history.filter((r) => r.status === "late").length;
-
     historyMessage += `\n*Ringkasan:*\n`;
-    historyMessage += `✅ Tepat Waktu: ${onTime}\n`;
-    historyMessage += `⚠️ Terlambat: ${late}\n`;
     historyMessage += `📊 Total Hari: ${history.length}`;
 
     ctx.reply(historyMessage, { parse_mode: "Markdown" });
@@ -111,14 +105,12 @@ bot.command("status", async (ctx) => {
     const userToday = today.find((record) => record.userId === userId);
 
     if (userToday) {
-      const status =
-        userToday.status === "present" ? "✅ Tepat Waktu" : "⚠️ Terlambat";
       const time = userToday.timestamp.toLocaleTimeString("id-ID", {
         hour: "2-digit",
         minute: "2-digit",
       });
       ctx.reply(
-        `✅ *Status Absensi*\n\nAnda sudah absen hari ini!\n${status} pada ${time}`,
+        `✅ *Status Absensi*\n\nAnda sudah absen hari ini pada ${time}`,
         { parse_mode: "Markdown" }
       );
     } else {
