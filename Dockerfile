@@ -18,13 +18,10 @@ RUN pnpm run build
 
 # Final runtime image
 FROM node:18-alpine
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nodejs -u 1001
 WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN mkdir -p /app/data && chown -R nodejs:nodejs /app
-USER nodejs
+RUN mkdir -p /app/data
 VOLUME ["/app/data"]
 CMD ["node", "dist/main.js"]
