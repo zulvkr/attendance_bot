@@ -1,4 +1,4 @@
-import { DatabaseService } from "../database";
+import { DatabaseService } from "../config/database";
 
 async function runMigrations() {
   console.log("Running database migrations...");
