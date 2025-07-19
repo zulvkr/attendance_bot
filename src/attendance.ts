@@ -1,6 +1,6 @@
 import { authenticator } from "otplib";
 import { ENV } from "./config/environment";
-import { formatDate, formatTime } from "./dateUtils";
+import { formatDate, formatTime } from "./utils/dateUtils";
 import { DatabaseService, AttendanceRecord } from "./config/database";
 
 export class AttendanceService {
