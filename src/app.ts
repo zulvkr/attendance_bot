@@ -56,9 +56,9 @@ bot.help((ctx) => {
 📊 /report - Lihat laporan absensi hari ini
 📈 /history - Lihat riwayat absensi Anda (30 hari terakhir)
 🔄 /status - Cek apakah Anda sudah absen hari ini
-🏷️ /alias - Absen dengan nama lain
-   Format: \`/alias [OTP] [Nama Depan] [Nama Belakang]\`
-   Contoh: \`/alias 123456 John Doe\`
+🏷️ /alias - Gunakan nama panggilan/alias untuk absensi
+   Format: \`/alias [Nama Depan] [Nama Belakang]\`
+   Contoh: \`/alias John Doe\`
 📋 /fullreport - Download laporan lengkap dalam format CSV
    Format: Masukkan rentang tanggal (YYYY-MM-DD YYYY-MM-DD)
 
@@ -189,7 +189,7 @@ bot.command("alias", async (ctx) => {
 bot.command("fullreport", async (ctx) => {
   try {
     ctx.reply(
-      `📊 *Laporan Lengkap Absensi*\n\nSilakan masukkan rentang tanggal dalam format:\n\`YYYY-MM-DD YYYY-MM-DD\`\n\n*Contoh:*\n\`2025-01-01 2025-01-31\`\n\n*Catatan:* Laporan akan dikirim dalam format CSV.`,
+      `📊 *Laporan Lengkap Absensi*\n\nSilakan masukkan password admin dan rentang tanggal dalam format:\n\`[password] YYYY-MM-DD YYYY-MM-DD\`\n\n*Contoh:*\n\`admin123 2025-01-01 2025-01-31\`\n\n*Catatan:* Laporan akan dikirim dalam format CSV.`,
       { parse_mode: "Markdown" }
     );
 
@@ -248,18 +248,25 @@ bot.on(message("text"), async (ctx) => {
   if (ctx.session?.awaitingDateRange) {
     ctx.session.awaitingDateRange = false;
 
-    // Validate date range format
-    const dateRangeRegex = /^(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})$/;
+    // Validate password and date range format
+    const dateRangeRegex =
+      /^([\S]+)\s+(\d{4}-\d{2}-\d{2})\s+(\d{4}-\d{2}-\d{2})$/;
     const match = text.match(dateRangeRegex);
 
     if (!match) {
       ctx.reply(
-        "❌ Format tanggal tidak valid. Gunakan format: YYYY-MM-DD YYYY-MM-DD\n\nContoh: 2025-01-01 2025-01-31"
+        "❌ Format input tidak valid. Gunakan format: [password] YYYY-MM-DD YYYY-MM-DD\n\nContoh: admin123 2025-01-01 2025-01-31"
       );
       return;
     }
 
-    const [, startDate, endDate] = match;
+    const [, password, startDate, endDate] = match;
+
+    // Check password
+    if (password !== ENV.ADMIN_PASSWORD) {
+      ctx.reply("❌ Password admin salah. Akses ditolak.");
+      return;
+    }
 
     // Validate dates
     const start = new Date(startDate);
