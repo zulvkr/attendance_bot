@@ -1,4 +1,4 @@
-import { ENV } from "./environment";
+import { ENV } from "./config/environment";
 import { AttendanceService } from "./attendance";
 
 import { Telegraf, Context } from "telegraf";

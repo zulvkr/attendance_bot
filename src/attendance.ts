@@ -1,7 +1,7 @@
 import { authenticator } from "otplib";
-import { ENV } from "./environment";
+import { ENV } from "./config/environment";
 import { formatDate, formatTime } from "./dateUtils";
-import { DatabaseService, AttendanceRecord } from "./database";
+import { DatabaseService, AttendanceRecord } from "./config/database";
 
 export class AttendanceService {
   private db: DatabaseService;
@@ -37,7 +37,7 @@ export class AttendanceService {
 
     // Check if user already marked attendance today
     try {
-      const hasAttendance = await this.db.checkUserAttendanceToday(
+      const hasAttendance = await this.db.attendance.checkUserAttendanceToday(
         userId,
         dateKey
       );
@@ -65,7 +65,7 @@ export class AttendanceService {
       };
 
       // Store the record in database
-      const savedRecord = await this.db.insertAttendance(record);
+      const savedRecord = await this.db.attendance.insertAttendance(record);
 
       const statusMessage =
         status === "late" ? "⚠️ Late arrival" : "✅ On time";
@@ -90,14 +90,14 @@ export class AttendanceService {
 
   async getTodayAttendance(): Promise<AttendanceRecord[]> {
     const today = formatDate(new Date(), "yyyy-MM-dd");
-    return await this.db.getTodayAttendance(today);
+    return await this.db.attendance.getTodayAttendance(today);
   }
 
   async getUserAttendanceHistory(
     userId: number,
     days: number = 30
   ): Promise<AttendanceRecord[]> {
-    return await this.db.getUserAttendanceHistory(userId, days);
+    return await this.db.attendance.getUserAttendanceHistory(userId, days);
   }
 
   async generateAttendanceReport(): Promise<string> {

@@ -1,4 +1,4 @@
-import { AttendanceRecord } from "../database";
+import { AttendanceRecord } from "../config/database";
 import { Knex } from "knex";
 
 export class AttendanceRepository {
