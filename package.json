@@ -5,9 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "pnpx tsx app.ts",
-    "setup-totp": "pnpx tsx setup-totp.ts",
-    "start": "node dist/app.js",
+    "dev": "pnpx tsx main.ts",
+    "setup-totp": "pnpx tsx src/setup-totp.ts",
+    "migrate": "pnpx tsx src/migrations.ts",
+    "start": "node dist/main.js",
     "build": "tsc"
   },
   "keywords": [],
@@ -17,8 +18,10 @@
   "dependencies": {
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.0",
+    "knex": "^3.1.0",
     "otplib": "^12.0.1",
     "qrcode": "^1.5.4",
+    "sqlite3": "^5.1.7",
     "telegraf": "^4.16.3",
     "zod": "^4.0.5"
   },
