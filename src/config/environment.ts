@@ -1,6 +1,6 @@
 import { z } from "zod";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const envSchema = z.object({
   BOT_TOKEN: z.string().min(10),
@@ -12,7 +12,6 @@ function getEnv() {
     BOT_TOKEN: process.env.BOT_TOKEN,
     TOTP_SECRET: process.env.TOTP_SECRET,
   };
-  console.log("Environment Variables:", env);
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) {
     throw new Error(
